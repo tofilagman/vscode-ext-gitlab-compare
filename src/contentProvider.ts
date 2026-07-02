@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { git } from './git';
 
-/** Query payload encoded into gitlab-compare: URIs. */
+/** Query payload encoded into branch-compare: URIs. */
 interface RefQuery {
   repo: string;
   ref: string;
@@ -13,12 +13,12 @@ interface RefQuery {
  * Serves the contents of a file at an arbitrary git ref through a virtual
  * document, so it can be fed to VS Code's built-in diff editor.
  *
- * URI shape:  gitlab-compare:/<display path>?<json RefQuery>
+ * URI shape:  branch-compare:/<display path>?<json RefQuery>
  * The path segment keeps the real filename/extension so language detection and
  * the editor title work; the query carries the ref actually read.
  */
 export class GitContentProvider implements vscode.TextDocumentContentProvider {
-  static readonly scheme = 'gitlab-compare';
+  static readonly scheme = 'branch-compare';
 
   static toUri(query: RefQuery): vscode.Uri {
     return vscode.Uri.from({

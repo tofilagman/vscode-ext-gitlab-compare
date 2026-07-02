@@ -1,13 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <rect x="0" y="0" width="128" height="128" rx="24" fill="#ffffff"/>
-  <!-- left face -->
-  <polygon points="28,72 40,34 64,44 64,108" fill="#fc6d26"/>
-  <!-- right face -->
-  <polygon points="100,72 88,34 64,44 64,108" fill="#fc6d26"/>
-  <!-- left ear -->
-  <polygon points="40,34 28,72 52,72" fill="#e24329"/>
-  <!-- right ear -->
-  <polygon points="88,34 100,72 76,72" fill="#e24329"/>
-  <!-- center muzzle -->
-  <polygon points="64,44 52,72 64,108 76,72" fill="#fca326"/>
+  <rect x="0" y="0" width="128" height="128" rx="26" fill="#4f46e5"/>
+  <g fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <!-- source branch node (top-left) -->
+    <circle cx="42" cy="42" r="11"/>
+    <!-- target branch node (bottom-right) -->
+    <circle cx="86" cy="86" r="11"/>
+    <!-- diverging branch paths -->
+    <path d="M42 53 v18 a16 16 0 0 0 16 16 h11"/>
+    <path d="M86 75 V57 a16 16 0 0 0 -16 -16 h-11"/>
+    <!-- direction arrowheads -->
+    <path d="M63 30 l-11 11 l11 11"/>
+    <path d="M65 98 l11 -11 l-11 -11"/>
+  </g>
 </svg>

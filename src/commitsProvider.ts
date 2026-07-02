@@ -102,7 +102,7 @@ export class CommitsProvider implements vscode.TreeDataProvider<CommitTreeNode> 
     item.resourceUri = decorationUri(f);
     item.contextValue = 'commitFile';
     item.command = {
-      command: 'gitlabCompare.openCommitChange',
+      command: 'branchCompare.openCommitChange',
       title: 'Open Commit Change',
       arguments: [element],
     };

@@ -118,7 +118,7 @@ export async function mergeBase(repo: string, a: string, b: string): Promise<str
 /**
  * List files changed between `base` and `source`.
  * When `threeDot` is true the git "triple-dot" range (base...source) is used,
- * matching what GitLab shows for a merge request.
+ * matching what a merge request shows.
  */
 export async function changedFiles(
   repo: string,
@@ -186,7 +186,7 @@ function parseNameStatusZ(out: string): ChangedFile[] {
 /**
  * List commits present in `source` but not in `target` (target..source) — the
  * commits that a merge request from source into target would contribute, and
- * exactly what GitLab shows on an MR's Commits tab.
+ * exactly what a merge request's Commits tab shows.
  */
 export async function listCommits(
   repo: string,

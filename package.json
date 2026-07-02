@@ -1,7 +1,7 @@
 {
-  "name": "gitlab-compare",
-  "displayName": "GitLab Compare",
-  "description": "Compare two git branches visually, like a GitLab merge request — no MR required.",
+  "name": "branch-compare",
+  "displayName": "Branch Compare",
+  "description": "Compare two git branches visually with a merge-request-style diff — file tree, commits, and multi-file diffs. No merge request required.",
   "version": "0.1.0",
   "publisher": "local",
   "license": "MIT",
@@ -27,7 +27,7 @@
     "compare",
     "branch",
     "merge request",
-    "gitlab"
+    "code review"
   ],
   "activationEvents": [
     "onStartupFinished"
@@ -37,80 +37,80 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "gitlabCompare",
-          "title": "GitLab Compare",
+          "id": "branchCompare",
+          "title": "Branch Compare",
           "icon": "media/compare.svg"
         }
       ]
     },
     "views": {
-      "gitlabCompare": [
+      "branchCompare": [
         {
-          "id": "gitlabCompare.changes",
+          "id": "branchCompare.changes",
           "name": "Changes",
           "icon": "media/compare.svg",
-          "contextualTitle": "GitLab Compare"
+          "contextualTitle": "Branch Compare"
         },
         {
-          "id": "gitlabCompare.commits",
+          "id": "branchCompare.commits",
           "name": "Commits",
           "icon": "media/compare.svg",
-          "contextualTitle": "GitLab Compare"
+          "contextualTitle": "Branch Compare"
         }
       ]
     },
     "viewsWelcome": [
       {
-        "view": "gitlabCompare.changes",
-        "contents": "Compare two git branches and browse the changes like a GitLab merge request.\n[Select branches to compare](command:gitlabCompare.selectBranches)\nThe target is the base branch; the source is the branch whose changes you want to review."
+        "view": "branchCompare.changes",
+        "contents": "Compare two git branches and browse the changes in a merge-request-style diff.\n[Select branches to compare](command:branchCompare.selectBranches)\nThe target is the base branch; the source is the branch whose changes you want to review."
       },
       {
-        "view": "gitlabCompare.commits",
-        "contents": "Commits on the source branch that aren't in the target will appear here.\n[Select branches to compare](command:gitlabCompare.selectBranches)",
-        "when": "!gitlabCompare.hasComparison"
+        "view": "branchCompare.commits",
+        "contents": "Commits on the source branch that aren't in the target will appear here.\n[Select branches to compare](command:branchCompare.selectBranches)",
+        "when": "!branchCompare.hasComparison"
       }
     ],
     "commands": [
       {
-        "command": "gitlabCompare.selectBranches",
-        "title": "GitLab Compare: Select Branches to Compare",
+        "command": "branchCompare.selectBranches",
+        "title": "Branch Compare: Select Branches to Compare",
         "icon": "$(git-compare)"
       },
       {
-        "command": "gitlabCompare.refresh",
-        "title": "GitLab Compare: Refresh",
+        "command": "branchCompare.refresh",
+        "title": "Branch Compare: Refresh",
         "icon": "$(refresh)"
       },
       {
-        "command": "gitlabCompare.swapBranches",
-        "title": "GitLab Compare: Swap Target / Source",
+        "command": "branchCompare.swapBranches",
+        "title": "Branch Compare: Swap Target / Source",
         "icon": "$(arrow-swap)"
       },
       {
-        "command": "gitlabCompare.toggleCompareMode",
-        "title": "GitLab Compare: Toggle Merge-base / Direct Diff",
+        "command": "branchCompare.toggleCompareMode",
+        "title": "Branch Compare: Toggle Merge-base / Direct Diff",
         "icon": "$(git-merge)"
       },
       {
-        "command": "gitlabCompare.openChange",
-        "title": "GitLab Compare: Open Change"
+        "command": "branchCompare.openChange",
+        "title": "Branch Compare: Open Change"
       },
       {
-        "command": "gitlabCompare.openCommitChange",
-        "title": "GitLab Compare: Open Commit Change"
+        "command": "branchCompare.openCommitChange",
+        "title": "Branch Compare: Open Commit Change"
       },
       {
-        "command": "gitlabCompare.openCommitDiff",
+        "command": "branchCompare.openCommitDiff",
         "title": "View Entire Commit as One Diff",
         "icon": "$(diff-multiple)"
       },
       {
-        "command": "gitlabCompare.openAllChanges",
-        "title": "GitLab Compare: View All Changes as One Diff",
+        "command": "branchCompare.openAllChanges",
+        "title": "Branch Compare: View All Changes as One Diff",
         "icon": "$(diff-multiple)"
       },
       {
-        "command": "gitlabCompare.copyCommitSha",
+        "command": "branchCompare.copyCommitSha",
         "title": "Copy Commit SHA",
         "icon": "$(copy)"
       }
@@ -118,76 +118,76 @@
     "menus": {
       "view/title": [
         {
-          "command": "gitlabCompare.selectBranches",
-          "when": "view == gitlabCompare.changes",
+          "command": "branchCompare.selectBranches",
+          "when": "view == branchCompare.changes",
           "group": "navigation@1"
         },
         {
-          "command": "gitlabCompare.swapBranches",
-          "when": "view == gitlabCompare.changes && gitlabCompare.hasComparison",
+          "command": "branchCompare.swapBranches",
+          "when": "view == branchCompare.changes && branchCompare.hasComparison",
           "group": "navigation@2"
         },
         {
-          "command": "gitlabCompare.toggleCompareMode",
-          "when": "view == gitlabCompare.changes && gitlabCompare.hasComparison",
+          "command": "branchCompare.toggleCompareMode",
+          "when": "view == branchCompare.changes && branchCompare.hasComparison",
           "group": "navigation@3"
         },
         {
-          "command": "gitlabCompare.openAllChanges",
-          "when": "view == gitlabCompare.changes && gitlabCompare.hasComparison",
+          "command": "branchCompare.openAllChanges",
+          "when": "view == branchCompare.changes && branchCompare.hasComparison",
           "group": "navigation@4"
         },
         {
-          "command": "gitlabCompare.refresh",
-          "when": "view == gitlabCompare.changes && gitlabCompare.hasComparison",
+          "command": "branchCompare.refresh",
+          "when": "view == branchCompare.changes && branchCompare.hasComparison",
           "group": "navigation@5"
         },
         {
-          "command": "gitlabCompare.selectBranches",
-          "when": "view == gitlabCompare.commits",
+          "command": "branchCompare.selectBranches",
+          "when": "view == branchCompare.commits",
           "group": "navigation@1"
         },
         {
-          "command": "gitlabCompare.refresh",
-          "when": "view == gitlabCompare.commits && gitlabCompare.hasComparison",
+          "command": "branchCompare.refresh",
+          "when": "view == branchCompare.commits && branchCompare.hasComparison",
           "group": "navigation@2"
         }
       ],
       "view/item/context": [
         {
-          "command": "gitlabCompare.openCommitDiff",
-          "when": "view == gitlabCompare.commits && viewItem == commit",
+          "command": "branchCompare.openCommitDiff",
+          "when": "view == branchCompare.commits && viewItem == commit",
           "group": "inline@1"
         },
         {
-          "command": "gitlabCompare.copyCommitSha",
-          "when": "view == gitlabCompare.commits && viewItem == commit",
+          "command": "branchCompare.copyCommitSha",
+          "when": "view == branchCompare.commits && viewItem == commit",
           "group": "inline@2"
         },
         {
-          "command": "gitlabCompare.openCommitDiff",
-          "when": "view == gitlabCompare.commits && viewItem == commit",
+          "command": "branchCompare.openCommitDiff",
+          "when": "view == branchCompare.commits && viewItem == commit",
           "group": "navigation@1"
         }
       ]
     },
     "configuration": {
-      "title": "GitLab Compare",
+      "title": "Branch Compare",
       "properties": {
-        "gitlabCompare.compareMode": {
+        "branchCompare.compareMode": {
           "type": "string",
           "enum": [
             "merge-base",
             "direct"
           ],
           "enumDescriptions": [
-            "Three-dot diff (target...source): only changes introduced on the source branch since it diverged. Matches GitLab merge requests.",
+            "Three-dot diff (target...source): only changes introduced on the source branch since it diverged. Matches how a merge request shows changes.",
             "Two-dot diff (target source): every difference between the two branch tips."
           ],
           "default": "merge-base",
           "description": "How to compute the diff between the two branches."
         },
-        "gitlabCompare.showRemoteBranches": {
+        "branchCompare.showRemoteBranches": {
           "type": "boolean",
           "default": true,
           "description": "Include remote-tracking branches in the branch picker."

@@ -14,17 +14,17 @@ import {
   listBranches,
 } from './git';
 
-const HAS_COMPARISON = 'gitlabCompare.hasComparison';
+const HAS_COMPARISON = 'branchCompare.hasComparison';
 
 export function activate(context: vscode.ExtensionContext) {
   const provider = new CompareProvider();
   const commitsProvider = new CommitsProvider();
 
-  const treeView = vscode.window.createTreeView('gitlabCompare.changes', {
+  const treeView = vscode.window.createTreeView('branchCompare.changes', {
     treeDataProvider: provider,
     showCollapseAll: true,
   });
-  const commitsView = vscode.window.createTreeView('gitlabCompare.commits', {
+  const commitsView = vscode.window.createTreeView('branchCompare.commits', {
     treeDataProvider: commitsProvider,
     showCollapseAll: true,
   });
@@ -33,7 +33,7 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.StatusBarAlignment.Left,
     50
   );
-  statusBar.command = 'gitlabCompare.selectBranches';
+  statusBar.command = 'branchCompare.selectBranches';
 
   const syncUi = () => {
     const cmp = provider.current;
@@ -59,7 +59,7 @@ export function activate(context: vscode.ExtensionContext) {
         ? `No commits on "${cmp.source}" that aren't already in "${cmp.target}".`
         : `${commitsProvider.count} commit(s)`;
     statusBar.text = `$(git-compare) ${cmp.target} ↔ ${cmp.source}`;
-    statusBar.tooltip = `GitLab Compare · +${cmp.stat.insertions} −${cmp.stat.deletions} (${mode} diff)\nClick to change branches`;
+    statusBar.tooltip = `Branch Compare · +${cmp.stat.insertions} −${cmp.stat.deletions} (${mode} diff)\nClick to change branches`;
     statusBar.show();
   };
 
@@ -81,46 +81,46 @@ export function activate(context: vscode.ExtensionContext) {
     ),
     vscode.window.registerFileDecorationProvider(new ChangeDecorationProvider()),
 
-    vscode.commands.registerCommand('gitlabCompare.selectBranches', () =>
+    vscode.commands.registerCommand('branchCompare.selectBranches', () =>
       run(async () => {
         await selectBranches(provider);
         await syncCommits();
       }).then(syncUi)
     ),
-    vscode.commands.registerCommand('gitlabCompare.refresh', () =>
+    vscode.commands.registerCommand('branchCompare.refresh', () =>
       run(async () => {
         await provider.refresh();
         await syncCommits();
       }).then(syncUi)
     ),
-    vscode.commands.registerCommand('gitlabCompare.swapBranches', () =>
+    vscode.commands.registerCommand('branchCompare.swapBranches', () =>
       run(async () => {
         await provider.swap();
         await syncCommits();
       }).then(syncUi)
     ),
-    vscode.commands.registerCommand('gitlabCompare.toggleCompareMode', () =>
+    vscode.commands.registerCommand('branchCompare.toggleCompareMode', () =>
       run(async () => {
         await provider.toggleMode();
         await syncCommits();
       }).then(syncUi)
     ),
-    vscode.commands.registerCommand('gitlabCompare.openChange', (node: TreeNode) =>
+    vscode.commands.registerCommand('branchCompare.openChange', (node: TreeNode) =>
       run(() => openChange(node, provider))
     ),
-    vscode.commands.registerCommand('gitlabCompare.openAllChanges', () =>
+    vscode.commands.registerCommand('branchCompare.openAllChanges', () =>
       run(() => openAllChanges(provider))
     ),
     vscode.commands.registerCommand(
-      'gitlabCompare.openCommitChange',
+      'branchCompare.openCommitChange',
       (node: CommitTreeNode) => run(() => openCommitChange(node, provider))
     ),
     vscode.commands.registerCommand(
-      'gitlabCompare.openCommitDiff',
+      'branchCompare.openCommitDiff',
       (node: CommitTreeNode) => run(() => openCommitDiff(node, provider))
     ),
     vscode.commands.registerCommand(
-      'gitlabCompare.copyCommitSha',
+      'branchCompare.copyCommitSha',
       (node: CommitTreeNode) => run(() => copyCommitSha(node))
     )
   );
@@ -141,7 +141,7 @@ async function run(action: () => Promise<unknown>): Promise<void> {
         : err instanceof Error
           ? err.message
           : String(err);
-    vscode.window.showErrorMessage(`GitLab Compare: ${detail}`);
+    vscode.window.showErrorMessage(`Branch Compare: ${detail}`);
   }
 }
 
@@ -152,12 +152,12 @@ async function selectBranches(provider: CompareProvider): Promise<void> {
   }
 
   const includeRemote = vscode.workspace
-    .getConfiguration('gitlabCompare')
+    .getConfiguration('branchCompare')
     .get<boolean>('showRemoteBranches', true);
   const branches = await listBranches(repo, includeRemote);
   if (branches.length < 2) {
     vscode.window.showWarningMessage(
-      'GitLab Compare: need at least two branches to compare.'
+      'Branch Compare: need at least two branches to compare.'
     );
     return;
   }
@@ -182,11 +182,11 @@ async function selectBranches(provider: CompareProvider): Promise<void> {
 
   const threeDot =
     vscode.workspace
-      .getConfiguration('gitlabCompare')
+      .getConfiguration('branchCompare')
       .get<string>('compareMode', 'merge-base') === 'merge-base';
 
   await vscode.window.withProgress(
-    { location: { viewId: 'gitlabCompare.changes' } },
+    { location: { viewId: 'branchCompare.changes' } },
     () => provider.setComparison(repo, target, source, threeDot)
   );
 }
@@ -219,7 +219,7 @@ async function pickRepo(): Promise<string | undefined> {
   const folders = vscode.workspace.workspaceFolders ?? [];
   if (folders.length === 0) {
     vscode.window.showWarningMessage(
-      'GitLab Compare: open a folder that is a git repository first.'
+      'Branch Compare: open a folder that is a git repository first.'
     );
     return undefined;
   }
@@ -234,7 +234,7 @@ async function pickRepo(): Promise<string | undefined> {
   const list = [...roots];
   if (list.length === 0) {
     vscode.window.showWarningMessage(
-      'GitLab Compare: no git repository found in the workspace.'
+      'Branch Compare: no git repository found in the workspace.'
     );
     return undefined;
   }
@@ -319,7 +319,7 @@ async function openAllChanges(provider: CompareProvider): Promise<void> {
     return;
   }
   if (cmp.files.length === 0) {
-    vscode.window.showInformationMessage('GitLab Compare: no changes to show.');
+    vscode.window.showInformationMessage('Branch Compare: no changes to show.');
     return;
   }
   const resources = cmp.files.map((f) =>
@@ -340,7 +340,7 @@ async function openCommitDiff(
   const files = await commitFiles(cmp.repo, commit.sha);
   if (files.length === 0) {
     vscode.window.showInformationMessage(
-      `GitLab Compare: ${commit.shortSha} changed no files.`
+      `Branch Compare: ${commit.shortSha} changed no files.`
     );
     return;
   }
@@ -379,7 +379,7 @@ async function openMultiDiff(
     await vscode.commands.executeCommand('vscode.changes', title, resources);
   } catch {
     const sourceUri = vscode.Uri.from({
-      scheme: 'gitlab-compare-multi',
+      scheme: 'branch-compare-multi',
       path: '/' + encodeURIComponent(title),
     });
     await vscode.commands.executeCommand('_workbench.openMultiDiffEditor', {

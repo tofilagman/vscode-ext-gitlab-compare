@@ -136,7 +136,7 @@ export class CompareProvider implements vscode.TreeDataProvider<TreeNode> {
     item.tooltip = this.tooltipFor(f);
     item.contextValue = 'file';
     item.command = {
-      command: 'gitlabCompare.openChange',
+      command: 'branchCompare.openChange',
       title: 'Open Change',
       arguments: [element],
     };
@@ -155,7 +155,7 @@ export class CompareProvider implements vscode.TreeDataProvider<TreeNode> {
 /** Encode a change into a decoration URI (see FileDecorationProvider). */
 export function decorationUri(f: ChangedFile): vscode.Uri {
   return vscode.Uri.from({
-    scheme: 'gitlab-compare-file',
+    scheme: 'branch-compare-file',
     path: '/' + f.path,
     query: f.status,
   });

@@ -2,11 +2,11 @@ import * as vscode from 'vscode';
 
 /**
  * Colors and single-letter badges for change status, mirroring the git badges
- * VS Code shows in the SCM view. Applied to gitlab-compare-file: URIs whose
+ * VS Code shows in the SCM view. Applied to branch-compare-file: URIs whose
  * query is the status letter.
  */
 export class ChangeDecorationProvider implements vscode.FileDecorationProvider {
-  static readonly scheme = 'gitlab-compare-file';
+  static readonly scheme = 'branch-compare-file';
 
   provideFileDecoration(uri: vscode.Uri): vscode.FileDecoration | undefined {
     if (uri.scheme !== ChangeDecorationProvider.scheme) {

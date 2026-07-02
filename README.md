@@ -5,6 +5,21 @@ inside VS Code, without needing an actual MR/PR. Pick any two branches, get a
 tree of changed files, browse the commits, and click any file to open VS Code's
 built-in side-by-side diff.
 
+## Install
+
+Install **Git Branch Compare** from the Visual Studio Marketplace:
+
+- In VS Code, open the **Extensions** view (`Ctrl+Shift+X` / `Cmd+Shift+X`),
+  search for **Git Branch Compare**, and click **Install**.
+- Or from the command line:
+
+  ```bash
+  code --install-extension tofilagman.git-branch-compare
+  ```
+
+- Or open it directly on the
+  [Marketplace](https://marketplace.visualstudio.com/items?itemName=tofilagman.git-branch-compare).
+
 ## Features
 
 - **Branch → branch comparison** from a dedicated activity-bar view.

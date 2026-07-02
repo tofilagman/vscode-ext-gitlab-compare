@@ -1,0 +1,202 @@
+{
+  "name": "gitlab-compare",
+  "displayName": "GitLab Compare",
+  "description": "Compare two git branches visually, like a GitLab merge request — no MR required.",
+  "version": "0.1.0",
+  "publisher": "local",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "SCM Providers",
+    "Other"
+  ],
+  "keywords": [
+    "git",
+    "diff",
+    "compare",
+    "branch",
+    "merge request",
+    "gitlab"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "gitlabCompare",
+          "title": "GitLab Compare",
+          "icon": "media/compare.svg"
+        }
+      ]
+    },
+    "views": {
+      "gitlabCompare": [
+        {
+          "id": "gitlabCompare.changes",
+          "name": "Changes",
+          "icon": "media/compare.svg",
+          "contextualTitle": "GitLab Compare"
+        },
+        {
+          "id": "gitlabCompare.commits",
+          "name": "Commits",
+          "icon": "media/compare.svg",
+          "contextualTitle": "GitLab Compare"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "gitlabCompare.changes",
+        "contents": "Compare two git branches and browse the changes like a GitLab merge request.\n[Select branches to compare](command:gitlabCompare.selectBranches)\nThe target is the base branch; the source is the branch whose changes you want to review."
+      },
+      {
+        "view": "gitlabCompare.commits",
+        "contents": "Commits on the source branch that aren't in the target will appear here.\n[Select branches to compare](command:gitlabCompare.selectBranches)",
+        "when": "!gitlabCompare.hasComparison"
+      }
+    ],
+    "commands": [
+      {
+        "command": "gitlabCompare.selectBranches",
+        "title": "GitLab Compare: Select Branches to Compare",
+        "icon": "$(git-compare)"
+      },
+      {
+        "command": "gitlabCompare.refresh",
+        "title": "GitLab Compare: Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "gitlabCompare.swapBranches",
+        "title": "GitLab Compare: Swap Target / Source",
+        "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "gitlabCompare.toggleCompareMode",
+        "title": "GitLab Compare: Toggle Merge-base / Direct Diff",
+        "icon": "$(git-merge)"
+      },
+      {
+        "command": "gitlabCompare.openChange",
+        "title": "GitLab Compare: Open Change"
+      },
+      {
+        "command": "gitlabCompare.openCommitChange",
+        "title": "GitLab Compare: Open Commit Change"
+      },
+      {
+        "command": "gitlabCompare.openCommitDiff",
+        "title": "View Entire Commit as One Diff",
+        "icon": "$(diff-multiple)"
+      },
+      {
+        "command": "gitlabCompare.openAllChanges",
+        "title": "GitLab Compare: View All Changes as One Diff",
+        "icon": "$(diff-multiple)"
+      },
+      {
+        "command": "gitlabCompare.copyCommitSha",
+        "title": "Copy Commit SHA",
+        "icon": "$(copy)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "gitlabCompare.selectBranches",
+          "when": "view == gitlabCompare.changes",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gitlabCompare.swapBranches",
+          "when": "view == gitlabCompare.changes && gitlabCompare.hasComparison",
+          "group": "navigation@2"
+        },
+        {
+          "command": "gitlabCompare.toggleCompareMode",
+          "when": "view == gitlabCompare.changes && gitlabCompare.hasComparison",
+          "group": "navigation@3"
+        },
+        {
+          "command": "gitlabCompare.openAllChanges",
+          "when": "view == gitlabCompare.changes && gitlabCompare.hasComparison",
+          "group": "navigation@4"
+        },
+        {
+          "command": "gitlabCompare.refresh",
+          "when": "view == gitlabCompare.changes && gitlabCompare.hasComparison",
+          "group": "navigation@5"
+        },
+        {
+          "command": "gitlabCompare.selectBranches",
+          "when": "view == gitlabCompare.commits",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gitlabCompare.refresh",
+          "when": "view == gitlabCompare.commits && gitlabCompare.hasComparison",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "gitlabCompare.openCommitDiff",
+          "when": "view == gitlabCompare.commits && viewItem == commit",
+          "group": "inline@1"
+        },
+        {
+          "command": "gitlabCompare.copyCommitSha",
+          "when": "view == gitlabCompare.commits && viewItem == commit",
+          "group": "inline@2"
+        },
+        {
+          "command": "gitlabCompare.openCommitDiff",
+          "when": "view == gitlabCompare.commits && viewItem == commit",
+          "group": "navigation@1"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "GitLab Compare",
+      "properties": {
+        "gitlabCompare.compareMode": {
+          "type": "string",
+          "enum": [
+            "merge-base",
+            "direct"
+          ],
+          "enumDescriptions": [
+            "Three-dot diff (target...source): only changes introduced on the source branch since it diverged. Matches GitLab merge requests.",
+            "Two-dot diff (target source): every difference between the two branch tips."
+          ],
+          "default": "merge-base",
+          "description": "How to compute the diff between the two branches."
+        },
+        "gitlabCompare.showRemoteBranches": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include remote-tracking branches in the branch picker."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package --allow-missing-repository"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.0.0",
+    "typescript": "^5.4.0"
+  }
+}

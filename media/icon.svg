@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <rect x="0" y="0" width="128" height="128" rx="24" fill="#ffffff"/>
+  <!-- left face -->
+  <polygon points="28,72 40,34 64,44 64,108" fill="#fc6d26"/>
+  <!-- right face -->
+  <polygon points="100,72 88,34 64,44 64,108" fill="#fc6d26"/>
+  <!-- left ear -->
+  <polygon points="40,34 28,72 52,72" fill="#e24329"/>
+  <!-- right ear -->
+  <polygon points="88,34 100,72 76,72" fill="#e24329"/>
+  <!-- center muzzle -->
+  <polygon points="64,44 52,72 64,108 76,72" fill="#fca326"/>
+</svg>

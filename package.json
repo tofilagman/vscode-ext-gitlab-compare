@@ -6,6 +6,14 @@
   "publisher": "local",
   "license": "MIT",
   "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tofilagman/vscode-ext-gitlab-compare.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tofilagman/vscode-ext-gitlab-compare/issues"
+  },
+  "homepage": "https://github.com/tofilagman/vscode-ext-gitlab-compare#readme",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -191,7 +199,7 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "package": "vsce package --allow-missing-repository"
+    "package": "vsce package"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

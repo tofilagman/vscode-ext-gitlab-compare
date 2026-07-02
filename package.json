@@ -1,5 +1,5 @@
 {
-  "name": "branch-compare",
+  "name": "git-branch-compare",
   "displayName": "Branch Compare",
   "description": "Compare two git branches visually with a merge-request-style diff — file tree, commits, and multi-file diffs. No merge request required.",
   "version": "0.1.0",

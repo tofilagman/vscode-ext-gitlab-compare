@@ -15,10 +15,22 @@ import {
 } from './git';
 
 const HAS_COMPARISON = 'branchCompare.hasComparison';
+const TREE_LAYOUT = 'branchCompare.treeLayout';
+const LAST_COMPARISON_KEY = 'branchCompare.lastComparison';
+const TREE_LAYOUT_KEY = 'branchCompare.treeLayout';
+
+/** What we persist in workspaceState to restore the comparison after reload. */
+interface SavedComparison {
+  repo: string;
+  target: string;
+  source: string;
+  threeDot: boolean;
+}
 
 export function activate(context: vscode.ExtensionContext) {
   const provider = new CompareProvider();
   const commitsProvider = new CommitsProvider();
+  const contentProvider = new GitContentProvider();
 
   const treeView = vscode.window.createTreeView('branchCompare.changes', {
     treeDataProvider: provider,
@@ -38,6 +50,18 @@ export function activate(context: vscode.ExtensionContext) {
   const syncUi = () => {
     const cmp = provider.current;
     vscode.commands.executeCommand('setContext', HAS_COMPARISON, !!cmp);
+    // Remember the comparison so it survives a window reload.
+    context.workspaceState.update(
+      LAST_COMPARISON_KEY,
+      cmp
+        ? ({
+            repo: cmp.repo,
+            target: cmp.target,
+            source: cmp.source,
+            threeDot: cmp.threeDot,
+          } satisfies SavedComparison)
+        : undefined
+    );
     if (!cmp) {
       treeView.description = undefined;
       treeView.message = undefined;
@@ -57,7 +81,9 @@ export function activate(context: vscode.ExtensionContext) {
     commitsView.message =
       commitsProvider.count === 0
         ? `No commits on "${cmp.source}" that aren't already in "${cmp.target}".`
-        : `${commitsProvider.count} commit(s)`;
+        : commitsProvider.truncated
+          ? `Showing the latest ${commitsProvider.count} commits (branchCompare.maxCommits)`
+          : `${commitsProvider.count} commit(s)`;
     statusBar.text = `$(git-compare) ${cmp.target} ↔ ${cmp.source}`;
     statusBar.tooltip = `Branch Compare · +${cmp.stat.insertions} −${cmp.stat.deletions} (${mode} diff)\nClick to change branches`;
     statusBar.show();
@@ -71,39 +97,63 @@ export function activate(context: vscode.ExtensionContext) {
     );
   };
 
+  const setLayout = (tree: boolean) => {
+    provider.setLayout(tree);
+    vscode.commands.executeCommand('setContext', TREE_LAYOUT, tree);
+    context.workspaceState.update(TREE_LAYOUT_KEY, tree);
+  };
+
   context.subscriptions.push(
     treeView,
     commitsView,
     statusBar,
     vscode.workspace.registerTextDocumentContentProvider(
       GitContentProvider.scheme,
-      new GitContentProvider()
+      contentProvider
     ),
     vscode.window.registerFileDecorationProvider(new ChangeDecorationProvider()),
 
     vscode.commands.registerCommand('branchCompare.selectBranches', () =>
       run(async () => {
+        contentProvider.clearCache();
         await selectBranches(provider);
         await syncCommits();
       }).then(syncUi)
     ),
     vscode.commands.registerCommand('branchCompare.refresh', () =>
       run(async () => {
+        contentProvider.clearCache();
         await provider.refresh();
         await syncCommits();
       }).then(syncUi)
     ),
     vscode.commands.registerCommand('branchCompare.swapBranches', () =>
       run(async () => {
+        contentProvider.clearCache();
         await provider.swap();
         await syncCommits();
       }).then(syncUi)
     ),
     vscode.commands.registerCommand('branchCompare.toggleCompareMode', () =>
       run(async () => {
+        contentProvider.clearCache();
         await provider.toggleMode();
         await syncCommits();
       }).then(syncUi)
+    ),
+    vscode.commands.registerCommand('branchCompare.viewAsList', () =>
+      setLayout(false)
+    ),
+    vscode.commands.registerCommand('branchCompare.viewAsTree', () =>
+      setLayout(true)
+    ),
+    vscode.commands.registerCommand(
+      'branchCompare.openFile',
+      (node: TreeNode | CommitTreeNode) => run(() => openWorkingFile(node, provider))
+    ),
+    vscode.commands.registerCommand(
+      'branchCompare.copyPath',
+      (node: TreeNode | CommitTreeNode) => run(() => copyPath(node))
     ),
     vscode.commands.registerCommand('branchCompare.openChange', (node: TreeNode) =>
       run(() => openChange(node, provider))
@@ -126,6 +176,28 @@ export function activate(context: vscode.ExtensionContext) {
   );
 
   vscode.commands.executeCommand('setContext', HAS_COMPARISON, false);
+  setLayout(context.workspaceState.get<boolean>(TREE_LAYOUT_KEY, true));
+
+  // Restore the previous comparison (if any) without blocking activation.
+  // Silently drop it when it no longer applies (repo gone, branch deleted).
+  const saved = context.workspaceState.get<SavedComparison>(LAST_COMPARISON_KEY);
+  if (saved) {
+    (async () => {
+      try {
+        await provider.setComparison(
+          saved.repo,
+          saved.target,
+          saved.source,
+          saved.threeDot
+        );
+        await syncCommits();
+      } catch {
+        provider.clear();
+        commitsProvider.clear();
+      }
+      syncUi();
+    })();
+  }
 }
 
 export function deactivate() {}
@@ -391,6 +463,48 @@ async function openMultiDiff(
       })),
     });
   }
+}
+
+/** Pull the ChangedFile out of either tree's file node. */
+function fileOf(node: TreeNode | CommitTreeNode): ChangedFile | undefined {
+  if (!node) {
+    return undefined;
+  }
+  if (node.kind === 'file' || node.kind === 'commitFile') {
+    return node.file;
+  }
+  return undefined;
+}
+
+/** Open the working-tree copy of a changed file in a normal editor. */
+async function openWorkingFile(
+  node: TreeNode | CommitTreeNode,
+  provider: CompareProvider
+): Promise<void> {
+  const cmp = provider.current;
+  const file = fileOf(node);
+  if (!cmp || !file) {
+    return;
+  }
+  const uri = vscode.Uri.file(path.join(cmp.repo, file.path));
+  try {
+    await vscode.workspace.fs.stat(uri);
+  } catch {
+    vscode.window.showInformationMessage(
+      `Branch Compare: "${file.path}" does not exist in the working tree.`
+    );
+    return;
+  }
+  await vscode.window.showTextDocument(uri, { preview: true });
+}
+
+async function copyPath(node: TreeNode | CommitTreeNode): Promise<void> {
+  const file = fileOf(node);
+  if (!file) {
+    return;
+  }
+  await vscode.env.clipboard.writeText(file.path);
+  vscode.window.setStatusBarMessage(`Copied ${file.path} to clipboard`, 2000);
 }
 
 async function copyCommitSha(node: CommitTreeNode): Promise<void> {

@@ -2,7 +2,7 @@
   "name": "git-branch-compare",
   "displayName": "Git Branch Compare",
   "description": "Compare two git branches visually with a merge-request-style diff — file tree, commits, and multi-file diffs. No merge request required.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "tofilagman",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -113,6 +113,25 @@
         "command": "branchCompare.copyCommitSha",
         "title": "Copy Commit SHA",
         "icon": "$(copy)"
+      },
+      {
+        "command": "branchCompare.viewAsList",
+        "title": "Branch Compare: View as List",
+        "icon": "$(list-flat)"
+      },
+      {
+        "command": "branchCompare.viewAsTree",
+        "title": "Branch Compare: View as Tree",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "branchCompare.openFile",
+        "title": "Open File",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "branchCompare.copyPath",
+        "title": "Copy Relative Path"
       }
     ],
     "menus": {
@@ -128,19 +147,29 @@
           "group": "navigation@2"
         },
         {
-          "command": "branchCompare.toggleCompareMode",
-          "when": "view == branchCompare.changes && branchCompare.hasComparison",
+          "command": "branchCompare.viewAsList",
+          "when": "view == branchCompare.changes && branchCompare.hasComparison && branchCompare.treeLayout",
           "group": "navigation@3"
         },
         {
-          "command": "branchCompare.openAllChanges",
+          "command": "branchCompare.viewAsTree",
+          "when": "view == branchCompare.changes && branchCompare.hasComparison && !branchCompare.treeLayout",
+          "group": "navigation@3"
+        },
+        {
+          "command": "branchCompare.toggleCompareMode",
           "when": "view == branchCompare.changes && branchCompare.hasComparison",
           "group": "navigation@4"
         },
         {
-          "command": "branchCompare.refresh",
+          "command": "branchCompare.openAllChanges",
           "when": "view == branchCompare.changes && branchCompare.hasComparison",
           "group": "navigation@5"
+        },
+        {
+          "command": "branchCompare.refresh",
+          "when": "view == branchCompare.changes && branchCompare.hasComparison",
+          "group": "navigation@6"
         },
         {
           "command": "branchCompare.selectBranches",
@@ -168,6 +197,26 @@
           "command": "branchCompare.openCommitDiff",
           "when": "view == branchCompare.commits && viewItem == commit",
           "group": "navigation@1"
+        },
+        {
+          "command": "branchCompare.openFile",
+          "when": "view == branchCompare.changes && viewItem == file",
+          "group": "inline@1"
+        },
+        {
+          "command": "branchCompare.openFile",
+          "when": "view == branchCompare.commits && viewItem == commitFile",
+          "group": "inline@1"
+        },
+        {
+          "command": "branchCompare.openFile",
+          "when": "view == branchCompare.changes && viewItem == file || view == branchCompare.commits && viewItem == commitFile",
+          "group": "navigation@1"
+        },
+        {
+          "command": "branchCompare.copyPath",
+          "when": "view == branchCompare.changes && viewItem == file || view == branchCompare.commits && viewItem == commitFile",
+          "group": "1_copy@1"
         }
       ]
     },
@@ -191,6 +240,12 @@
           "type": "boolean",
           "default": true,
           "description": "Include remote-tracking branches in the branch picker."
+        },
+        "branchCompare.maxCommits": {
+          "type": "number",
+          "default": 500,
+          "minimum": 0,
+          "description": "Maximum number of commits to list in the Commits view. Set to 0 for no limit."
         }
       }
     }

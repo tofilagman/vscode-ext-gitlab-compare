@@ -11,6 +11,12 @@ export interface ChangedFile {
   oldPath?: string;
   /** Rename/copy similarity percentage, when reported by git. */
   score?: number;
+  /** Lines added, when known (absent for binary files). */
+  insertions?: number;
+  /** Lines removed, when known (absent for binary files). */
+  deletions?: number;
+  /** True when git reports the file as binary. */
+  binary?: boolean;
 }
 
 export interface Branch {
@@ -127,14 +133,7 @@ export async function changedFiles(
   threeDot: boolean
 ): Promise<ChangedFile[]> {
   const range = threeDot ? `${base}...${source}` : `${base}..${source}`;
-  const out = await git(repo, [
-    'diff',
-    '--name-status',
-    '--find-renames',
-    '-z',
-    range,
-  ]);
-  return parseNameStatusZ(out);
+  return diffFiles(repo, [range]);
 }
 
 /**
@@ -146,15 +145,29 @@ export async function commitFiles(repo: string, sha: string): Promise<ChangedFil
   const shas = parent.trim().split(/\s+/);
   const base = shas.length > 1 ? shas[1] : EMPTY_TREE;
   // Two tree-ish args (not a range) so this also works against the empty tree.
-  const out = await git(repo, [
-    'diff',
-    '--name-status',
-    '--find-renames',
-    '-z',
-    base,
-    sha,
+  return diffFiles(repo, [base, sha]);
+}
+
+/**
+ * Run name-status and numstat diffs in parallel for the same revision args and
+ * merge them, so every file carries its status and its +/− line counts.
+ */
+async function diffFiles(repo: string, revArgs: string[]): Promise<ChangedFile[]> {
+  const [statusOut, numstatOut] = await Promise.all([
+    git(repo, ['diff', '--name-status', '--find-renames', '-z', ...revArgs]),
+    git(repo, ['diff', '--numstat', '--find-renames', '-z', ...revArgs]),
   ]);
-  return parseNameStatusZ(out);
+  const files = parseNameStatusZ(statusOut);
+  const stats = parseNumstatZ(numstatOut);
+  for (const f of files) {
+    const s = stats.get(f.path);
+    if (s) {
+      f.insertions = s.insertions;
+      f.deletions = s.deletions;
+      f.binary = s.binary;
+    }
+  }
+  return files;
 }
 
 /**
@@ -184,6 +197,42 @@ function parseNameStatusZ(out: string): ChangedFile[] {
 }
 
 /**
+ * Parse `git diff --numstat -z` output into a map keyed by (new) path.
+ * A regular record is one NUL field: "ins<TAB>del<TAB>path". A rename/copy
+ * record has an empty path field followed by two extra NUL fields (old path,
+ * new path). Binary files report "-" for both counts.
+ */
+function parseNumstatZ(out: string): Map<string, { insertions?: number; deletions?: number; binary: boolean }> {
+  const stats = new Map<string, { insertions?: number; deletions?: number; binary: boolean }>();
+  const parts = out.split('\0');
+  for (let i = 0; i < parts.length; i++) {
+    const record = parts[i];
+    if (!record) {
+      continue;
+    }
+    const m = /^(-|\d+)\t(-|\d+)\t(.*)$/s.exec(record);
+    if (!m) {
+      continue;
+    }
+    const binary = m[1] === '-';
+    let filePath = m[3];
+    if (filePath === '') {
+      // Rename/copy: skip the old path, key by the new path.
+      i += 2;
+      filePath = parts[i] ?? '';
+    }
+    if (filePath) {
+      stats.set(filePath, {
+        insertions: binary ? undefined : parseInt(m[1], 10),
+        deletions: binary ? undefined : parseInt(m[2], 10),
+        binary,
+      });
+    }
+  }
+  return stats;
+}
+
+/**
  * List commits present in `source` but not in `target` (target..source) — the
  * commits that a merge request from source into target would contribute, and
  * exactly what a merge request's Commits tab shows.
@@ -191,17 +240,22 @@ function parseNameStatusZ(out: string): ChangedFile[] {
 export async function listCommits(
   repo: string,
   target: string,
-  source: string
+  source: string,
+  maxCount?: number
 ): Promise<Commit[]> {
   // Field separator \x1f, record separator \x1e — neither appears in commit
   // metadata, so this survives multi-line/odd subjects.
   const fields = ['%H', '%h', '%s', '%an', '%ae', '%ar', '%aI', '%P'].join('%x1f');
-  const out = await git(repo, [
+  const args = [
     'log',
     `${target}..${source}`,
     `--format=%x1e${fields}`,
     '--no-color',
-  ]);
+  ];
+  if (maxCount && maxCount > 0) {
+    args.push(`--max-count=${maxCount}`);
+  }
+  const out = await git(repo, args);
 
   const commits: Commit[] = [];
   for (const record of out.split('\x1e')) {
@@ -222,23 +276,4 @@ export async function listCommits(
     });
   }
   return commits;
-}
-
-/** Diff stat (insertions/deletions) for the whole comparison. */
-export async function diffShortStat(
-  repo: string,
-  base: string,
-  source: string,
-  threeDot: boolean
-): Promise<{ insertions: number; deletions: number; filesChanged: number }> {
-  const range = threeDot ? `${base}...${source}` : `${base}..${source}`;
-  const out = await git(repo, ['diff', '--shortstat', range]);
-  const filesChanged = /(\d+) files? changed/.exec(out)?.[1];
-  const insertions = /(\d+) insertions?\(\+\)/.exec(out)?.[1];
-  const deletions = /(\d+) deletions?\(-\)/.exec(out)?.[1];
-  return {
-    filesChanged: filesChanged ? parseInt(filesChanged, 10) : 0,
-    insertions: insertions ? parseInt(insertions, 10) : 0,
-    deletions: deletions ? parseInt(deletions, 10) : 0,
-  };
 }

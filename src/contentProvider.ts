@@ -20,6 +20,13 @@ interface RefQuery {
 export class GitContentProvider implements vscode.TextDocumentContentProvider {
   static readonly scheme = 'branch-compare';
 
+  /**
+   * Blob contents keyed by URI. Branch refs can move, so the extension clears
+   * this whenever the comparison is (re)computed; within one comparison the
+   * content is stable and re-opening diffs costs no extra git calls.
+   */
+  private readonly cache = new Map<string, string>();
+
   static toUri(query: RefQuery): vscode.Uri {
     return vscode.Uri.from({
       scheme: GitContentProvider.scheme,
@@ -29,7 +36,17 @@ export class GitContentProvider implements vscode.TextDocumentContentProvider {
     });
   }
 
+  clearCache(): void {
+    this.cache.clear();
+  }
+
   async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
+    const key = uri.toString();
+    const cached = this.cache.get(key);
+    if (cached !== undefined) {
+      return cached;
+    }
+
     let query: RefQuery;
     try {
       query = JSON.parse(uri.query);
@@ -39,14 +56,26 @@ export class GitContentProvider implements vscode.TextDocumentContentProvider {
     if (!query.ref || !query.relPath) {
       return '';
     }
+
+    let content: string;
     try {
       // `git show <ref>:<path>` prints the blob at that ref. If the path does
       // not exist there (added on one side / deleted on the other) git exits
       // non-zero — we treat that as empty content so the diff shows the file
       // as fully added or removed.
-      return await git(query.repo, ['show', `${query.ref}:${query.relPath}`]);
+      content = await git(query.repo, ['show', `${query.ref}:${query.relPath}`]);
     } catch {
-      return '';
+      content = '';
     }
+    // Don't feed raw binary bytes to the text diff — show a short note instead.
+    if (content.includes('\u0000')) {
+      content = `(binary file: ${query.relPath} @ ${query.ref})\n`;
+    }
+
+    if (this.cache.size > 500) {
+      this.cache.clear();
+    }
+    this.cache.set(key, content);
+    return content;
   }
 }

@@ -1,11 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import {
-  ChangedFile,
-  changedFiles,
-  diffShortStat,
-  mergeBase,
-} from './git';
+import { ChangedFile, changedFiles, mergeBase } from './git';
 
 /** A resolved comparison between two branches. */
 export interface Comparison {
@@ -50,9 +45,22 @@ export class CompareProvider implements vscode.TreeDataProvider<TreeNode> {
 
   private comparison: Comparison | undefined;
   private roots: TreeNode[] = [];
+  private treeLayout = true;
 
   get current(): Comparison | undefined {
     return this.comparison;
+  }
+
+  get isTreeLayout(): boolean {
+    return this.treeLayout;
+  }
+
+  /** Switch between the nested folder tree and a flat file list. */
+  setLayout(tree: boolean): void {
+    if (this.treeLayout !== tree) {
+      this.treeLayout = tree;
+      this._onDidChange.fire(undefined);
+    }
   }
 
   /** Compute (or recompute) the comparison for the given branches and mode. */
@@ -62,11 +70,15 @@ export class CompareProvider implements vscode.TreeDataProvider<TreeNode> {
     source: string,
     threeDot: boolean
   ): Promise<void> {
-    const baseRef = threeDot ? await mergeBase(repo, target, source) : target;
-    const [files, stat] = await Promise.all([
+    const [baseRef, files] = await Promise.all([
+      threeDot ? mergeBase(repo, target, source) : Promise.resolve(target),
       changedFiles(repo, target, source, threeDot),
-      diffShortStat(repo, target, source, threeDot),
     ]);
+    const stat = {
+      filesChanged: files.length,
+      insertions: files.reduce((n, f) => n + (f.insertions ?? 0), 0),
+      deletions: files.reduce((n, f) => n + (f.deletions ?? 0), 0),
+    };
     this.comparison = { repo, target, source, baseRef, threeDot, files, stat };
     this.roots = buildTree(files);
     this._onDidChange.fire(undefined);
@@ -108,7 +120,9 @@ export class CompareProvider implements vscode.TreeDataProvider<TreeNode> {
       return [];
     }
     if (!element) {
-      return this.roots;
+      return this.treeLayout
+        ? this.roots
+        : this.comparison.files.map((file): TreeNode => ({ kind: 'file', file }));
     }
     return element.kind === 'folder' ? element.children : [];
   }
@@ -145,10 +159,16 @@ export class CompareProvider implements vscode.TreeDataProvider<TreeNode> {
 
   private tooltipFor(f: ChangedFile): string {
     const label = STATUS_LABEL[f.status] ?? f.status;
-    if ((f.status === 'R' || f.status === 'C') && f.oldPath) {
-      return `${label}: ${f.oldPath} → ${f.path}`;
-    }
-    return `${label}: ${f.path}`;
+    const what =
+      (f.status === 'R' || f.status === 'C') && f.oldPath
+        ? `${f.oldPath} → ${f.path}`
+        : f.path;
+    const stat = f.binary
+      ? ' · binary'
+      : f.insertions !== undefined || f.deletions !== undefined
+        ? ` · +${f.insertions ?? 0} −${f.deletions ?? 0}`
+        : '';
+    return `${label}: ${what}${stat}`;
   }
 }
 

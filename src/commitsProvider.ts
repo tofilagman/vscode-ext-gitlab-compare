@@ -27,6 +27,7 @@ export class CommitsProvider implements vscode.TreeDataProvider<CommitTreeNode> 
 
   private scope: CommitScope | undefined;
   private commits: Commit[] = [];
+  private _truncated = false;
   /** Lazily-loaded per-commit file lists, keyed by sha. */
   private readonly fileCache = new Map<string, ChangedFile[]>();
 
@@ -34,19 +35,29 @@ export class CommitsProvider implements vscode.TreeDataProvider<CommitTreeNode> 
     return this.commits.length;
   }
 
+  /** True when the list was capped at branchCompare.maxCommits. */
+  get truncated(): boolean {
+    return this._truncated;
+  }
+
   /** Point the view at a comparison (or clear it with undefined). */
   async setScope(scope: CommitScope | undefined): Promise<void> {
     this.scope = scope;
     this.fileCache.clear();
+    const maxCommits = vscode.workspace
+      .getConfiguration('branchCompare')
+      .get<number>('maxCommits', 500);
     this.commits = scope
-      ? await listCommits(scope.repo, scope.target, scope.source)
+      ? await listCommits(scope.repo, scope.target, scope.source, maxCommits)
       : [];
+    this._truncated = maxCommits > 0 && this.commits.length >= maxCommits;
     this._onDidChange.fire(undefined);
   }
 
   clear(): void {
     this.scope = undefined;
     this.commits = [];
+    this._truncated = false;
     this.fileCache.clear();
     this._onDidChange.fire(undefined);
   }
@@ -100,6 +111,9 @@ export class CommitsProvider implements vscode.TreeDataProvider<CommitTreeNode> 
     const dir = path.posix.dirname(f.path);
     item.description = dir === '.' ? '' : dir;
     item.resourceUri = decorationUri(f);
+    item.tooltip = f.binary
+      ? `${f.path} · binary`
+      : `${f.path} · +${f.insertions ?? 0} −${f.deletions ?? 0}`;
     item.contextValue = 'commitFile';
     item.command = {
       command: 'branchCompare.openCommitChange',

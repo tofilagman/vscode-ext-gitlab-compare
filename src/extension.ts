@@ -4,6 +4,7 @@ import { CompareProvider, TreeNode } from './compareProvider';
 import { CommitsProvider, CommitTreeNode } from './commitsProvider';
 import { GitContentProvider } from './contentProvider';
 import { ChangeDecorationProvider } from './decorations';
+import { ComparePanel } from './comparePanel';
 import {
   Branch,
   ChangedFile,
@@ -103,6 +104,59 @@ export function activate(context: vscode.ExtensionContext) {
     context.workspaceState.update(TREE_LAYOUT_KEY, tree);
   };
 
+  /** Open the GitLab-style compare page (repo + branch pickers + Compare). */
+  const openComparePage = async () => {
+    const roots = await listRepoRoots();
+    if (roots.length === 0) {
+      vscode.window.showWarningMessage(
+        'Branch Compare: open a folder that is a git repository first.'
+      );
+      return;
+    }
+    const cfg = vscode.workspace.getConfiguration('branchCompare');
+    const includeRemote = cfg.get<boolean>('showRemoteBranches', true);
+    const threeDotDefault =
+      provider.current?.threeDot ??
+      cfg.get<string>('compareMode', 'merge-base') === 'merge-base';
+
+    // Prefer the repo of the active comparison, else the first repo found.
+    const cur = provider.current;
+    const repo = cur && roots.includes(cur.repo) ? cur.repo : roots[0];
+    const branches = await listBranches(repo, includeRemote);
+    const source =
+      cur?.repo === repo ? cur.source : branches.find((b) => b.current)?.name;
+    const target =
+      cur?.repo === repo ? cur.target : defaultTarget(branches, source);
+
+    ComparePanel.show(
+      roots.map((r) => ({ path: r, name: path.basename(r) })),
+      { repo, branches, source, target, threeDot: threeDotDefault },
+      {
+        loadBranches: (r) => listBranches(r, includeRemote),
+        submit: async (req) => {
+          try {
+            contentProvider.clearCache();
+            await vscode.window.withProgress(
+              { location: { viewId: 'branchCompare.changes' } },
+              () =>
+                provider.setComparison(
+                  req.repo,
+                  req.target,
+                  req.source,
+                  req.threeDot
+                )
+            );
+            await syncCommits();
+            syncUi();
+            return { ok: true };
+          } catch (err) {
+            return { ok: false, error: errorText(err) };
+          }
+        },
+      }
+    );
+  };
+
   context.subscriptions.push(
     treeView,
     commitsView,
@@ -114,11 +168,7 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.registerFileDecorationProvider(new ChangeDecorationProvider()),
 
     vscode.commands.registerCommand('branchCompare.selectBranches', () =>
-      run(async () => {
-        contentProvider.clearCache();
-        await selectBranches(provider);
-        await syncCommits();
-      }).then(syncUi)
+      run(() => openComparePage())
     ),
     vscode.commands.registerCommand('branchCompare.refresh', () =>
       run(async () => {
@@ -202,100 +252,27 @@ export function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() {}
 
+/** Turn any thrown error into a human-friendly message. */
+function errorText(err: unknown): string {
+  return err instanceof GitError
+    ? err.stderr.trim() || err.message
+    : err instanceof Error
+      ? err.message
+      : String(err);
+}
+
 /** Run an async action, surfacing git/other errors as notifications. */
 async function run(action: () => Promise<unknown>): Promise<void> {
   try {
     await action();
   } catch (err) {
-    const detail =
-      err instanceof GitError
-        ? err.stderr.trim() || err.message
-        : err instanceof Error
-          ? err.message
-          : String(err);
-    vscode.window.showErrorMessage(`Branch Compare: ${detail}`);
+    vscode.window.showErrorMessage(`Branch Compare: ${errorText(err)}`);
   }
 }
 
-async function selectBranches(provider: CompareProvider): Promise<void> {
-  const repo = await pickRepo();
-  if (!repo) {
-    return;
-  }
-
-  const includeRemote = vscode.workspace
-    .getConfiguration('branchCompare')
-    .get<boolean>('showRemoteBranches', true);
-  const branches = await listBranches(repo, includeRemote);
-  if (branches.length < 2) {
-    vscode.window.showWarningMessage(
-      'Branch Compare: need at least two branches to compare.'
-    );
-    return;
-  }
-
-  const current = branches.find((b) => b.current)?.name;
-  const source = await pickBranch(
-    branches,
-    'Select the SOURCE branch — the changes you want to review',
-    current
-  );
-  if (!source) {
-    return;
-  }
-
-  const target = await pickBranch(
-    branches.filter((b) => b.name !== source),
-    `Select the TARGET branch to compare "${source}" against`
-  );
-  if (!target) {
-    return;
-  }
-
-  const threeDot =
-    vscode.workspace
-      .getConfiguration('branchCompare')
-      .get<string>('compareMode', 'merge-base') === 'merge-base';
-
-  await vscode.window.withProgress(
-    { location: { viewId: 'branchCompare.changes' } },
-    () => provider.setComparison(repo, target, source, threeDot)
-  );
-}
-
-function pickBranch(
-  branches: Branch[],
-  placeHolder: string,
-  preselect?: string
-): Thenable<string | undefined> {
-  const items: (vscode.QuickPickItem & { name: string })[] = branches.map((b) => ({
-    name: b.name,
-    label: b.current ? `$(star-full) ${b.name}` : `$(git-branch) ${b.name}`,
-    description: [b.current ? 'current' : '', b.remote ? 'remote' : '']
-      .filter(Boolean)
-      .join(' · '),
-  }));
-  // Float the pre-selected branch to the top for convenience.
-  if (preselect) {
-    const idx = items.findIndex((i) => i.name === preselect);
-    if (idx > 0) {
-      items.unshift(items.splice(idx, 1)[0]);
-    }
-  }
-  return vscode.window
-    .showQuickPick(items, { placeHolder, matchOnDescription: true })
-    .then((pick) => pick?.name);
-}
-
-async function pickRepo(): Promise<string | undefined> {
+/** Distinct git repository roots across all workspace folders. */
+async function listRepoRoots(): Promise<string[]> {
   const folders = vscode.workspace.workspaceFolders ?? [];
-  if (folders.length === 0) {
-    vscode.window.showWarningMessage(
-      'Branch Compare: open a folder that is a git repository first.'
-    );
-    return undefined;
-  }
-
   const roots = new Set<string>();
   for (const folder of folders) {
     const root = await findRepoRoot(folder.uri.fsPath);
@@ -303,20 +280,18 @@ async function pickRepo(): Promise<string | undefined> {
       roots.add(root);
     }
   }
-  const list = [...roots];
-  if (list.length === 0) {
-    vscode.window.showWarningMessage(
-      'Branch Compare: no git repository found in the workspace.'
-    );
-    return undefined;
+  return [...roots];
+}
+
+/** Pick a sensible default target branch (main/master/develop, else any other). */
+function defaultTarget(branches: Branch[], source?: string): string | undefined {
+  for (const name of ['main', 'master', 'develop', 'trunk']) {
+    const m = branches.find((b) => b.name === name && b.name !== source);
+    if (m) {
+      return m.name;
+    }
   }
-  if (list.length === 1) {
-    return list[0];
-  }
-  return vscode.window.showQuickPick(
-    list.map((r) => ({ label: path.basename(r), description: r, root: r })),
-    { placeHolder: 'Select the repository to compare branches in' }
-  ).then((pick) => (pick as { root: string } | undefined)?.root);
+  return branches.find((b) => b.name !== source)?.name;
 }
 
 async function openChange(node: TreeNode, provider: CompareProvider): Promise<void> {

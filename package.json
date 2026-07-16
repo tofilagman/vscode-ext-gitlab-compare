@@ -2,7 +2,7 @@
   "name": "git-branch-compare",
   "displayName": "Git Branch Compare",
   "description": "Compare two git branches visually with a merge-request-style diff — file tree, commits, and multi-file diffs. No merge request required.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "tofilagman",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -62,18 +62,18 @@
     "viewsWelcome": [
       {
         "view": "branchCompare.changes",
-        "contents": "Compare two git branches and browse the changes in a merge-request-style diff.\n[Select branches to compare](command:branchCompare.selectBranches)\nThe target is the base branch; the source is the branch whose changes you want to review."
+        "contents": "Compare two git branches and browse the changes in a merge-request-style diff.\n[Open compare page](command:branchCompare.selectBranches)\nThe target is the base branch; the source is the branch whose changes you want to review."
       },
       {
         "view": "branchCompare.commits",
-        "contents": "Commits on the source branch that aren't in the target will appear here.\n[Select branches to compare](command:branchCompare.selectBranches)",
+        "contents": "Commits on the source branch that aren't in the target will appear here.\n[Open compare page](command:branchCompare.selectBranches)",
         "when": "!branchCompare.hasComparison"
       }
     ],
     "commands": [
       {
         "command": "branchCompare.selectBranches",
-        "title": "Branch Compare: Select Branches to Compare",
+        "title": "Branch Compare: Open Compare Page",
         "icon": "$(git-compare)"
       },
       {

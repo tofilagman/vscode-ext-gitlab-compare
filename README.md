@@ -23,6 +23,9 @@ Install **Git Branch Compare** from the Visual Studio Marketplace:
 ## Features
 
 - **Branch → branch comparison** from a dedicated activity-bar view.
+- **GitLab-style compare page** — pick the target and source branches from
+  **searchable dropdowns** (type to filter, built to handle thousands of
+  branches), choose the diff mode, and hit **Compare**.
 - **Merge-base (three-dot) diff by default** — shows only the changes introduced
   on the *source* branch since it diverged from the *target*, the same way a
   merge request presents changes. Toggle to a **direct (two-dot)** diff any time.
@@ -51,9 +54,10 @@ Install **Git Branch Compare** from the Visual Studio Marketplace:
 ## Usage
 
 1. Open the **Branch Compare** view in the activity bar.
-2. Click **Select branches to compare**.
-3. Choose the **source** branch (the changes you want to review), then the
-   **target** branch (the base to compare against).
+2. Click **Open compare page**.
+3. On the page, pick the **target** (base) and **source** (changes) branches
+   from the searchable dropdowns — type to filter, handy when a repo has
+   thousands of branches — choose the diff mode, and click **Compare**.
 4. Browse the changed files and click any file to open its diff.
 
 Use the view-title buttons to swap branches, toggle merge-base/direct mode, or

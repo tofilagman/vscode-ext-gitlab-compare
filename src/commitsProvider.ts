@@ -40,6 +40,11 @@ export class CommitsProvider implements vscode.TreeDataProvider<CommitTreeNode> 
     return this._truncated;
   }
 
+  /** Position of a commit in the listed history (0 = newest), or -1. */
+  orderOf(sha: string): number {
+    return this.commits.findIndex((c) => c.sha === sha);
+  }
+
   /** Point the view at a comparison (or clear it with undefined). */
   async setScope(scope: CommitScope | undefined): Promise<void> {
     this.scope = scope;

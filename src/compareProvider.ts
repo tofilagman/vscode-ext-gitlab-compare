@@ -17,6 +17,24 @@ export interface Comparison {
   stat: { insertions: number; deletions: number; filesChanged: number };
 }
 
+/**
+ * A temporary focus on a sub-range of the comparison's commits, driven by
+ * multi-selecting rows in the Commits view. While set, the Changes tree shows
+ * only what those commits changed; clearing it restores the full comparison.
+ */
+export interface SelectionScope {
+  /** Left ref for every diff: the oldest selected commit's parent. */
+  baseRef: string;
+  /** Right ref for every diff: the newest selected commit. */
+  headRef: string;
+  oldestShort: string;
+  newestShort: string;
+  /** Commits covered by the range (including any unselected in between). */
+  count: number;
+  files: ChangedFile[];
+  stat: { insertions: number; deletions: number; filesChanged: number };
+}
+
 interface FolderNode {
   kind: 'folder';
   name: string;
@@ -44,11 +62,35 @@ export class CompareProvider implements vscode.TreeDataProvider<TreeNode> {
   readonly onDidChangeTreeData = this._onDidChange.event;
 
   private comparison: Comparison | undefined;
+  private selectionScope: SelectionScope | undefined;
   private roots: TreeNode[] = [];
   private treeLayout = true;
 
   get current(): Comparison | undefined {
     return this.comparison;
+  }
+
+  /** The commit-selection focus, when the view is narrowed to one. */
+  get scope(): SelectionScope | undefined {
+    return this.selectionScope;
+  }
+
+  /** The files the tree is currently showing (scoped or full). */
+  get visibleFiles(): ChangedFile[] {
+    return this.selectionScope?.files ?? this.comparison?.files ?? [];
+  }
+
+  /**
+   * Narrow the Changes tree to a commit range (pass undefined to restore the
+   * full branch comparison). No-op when nothing changes.
+   */
+  setScope(scope: Omit<SelectionScope, 'stat'> | undefined): void {
+    if (!scope && !this.selectionScope) {
+      return;
+    }
+    this.selectionScope = scope ? { ...scope, stat: statOf(scope.files) } : undefined;
+    this.roots = buildTree(this.visibleFiles);
+    this._onDidChange.fire(undefined);
   }
 
   get isTreeLayout(): boolean {
@@ -74,12 +116,16 @@ export class CompareProvider implements vscode.TreeDataProvider<TreeNode> {
       threeDot ? mergeBase(repo, target, source) : Promise.resolve(target),
       changedFiles(repo, target, source, threeDot),
     ]);
-    const stat = {
-      filesChanged: files.length,
-      insertions: files.reduce((n, f) => n + (f.insertions ?? 0), 0),
-      deletions: files.reduce((n, f) => n + (f.deletions ?? 0), 0),
+    this.comparison = {
+      repo,
+      target,
+      source,
+      baseRef,
+      threeDot,
+      files,
+      stat: statOf(files),
     };
-    this.comparison = { repo, target, source, baseRef, threeDot, files, stat };
+    this.selectionScope = undefined;
     this.roots = buildTree(files);
     this._onDidChange.fire(undefined);
   }
@@ -111,6 +157,7 @@ export class CompareProvider implements vscode.TreeDataProvider<TreeNode> {
 
   clear(): void {
     this.comparison = undefined;
+    this.selectionScope = undefined;
     this.roots = [];
     this._onDidChange.fire(undefined);
   }
@@ -122,7 +169,7 @@ export class CompareProvider implements vscode.TreeDataProvider<TreeNode> {
     if (!element) {
       return this.treeLayout
         ? this.roots
-        : this.comparison.files.map((file): TreeNode => ({ kind: 'file', file }));
+        : this.visibleFiles.map((file): TreeNode => ({ kind: 'file', file }));
     }
     return element.kind === 'folder' ? element.children : [];
   }
@@ -170,6 +217,14 @@ export class CompareProvider implements vscode.TreeDataProvider<TreeNode> {
         : '';
     return `${label}: ${what}${stat}`;
   }
+}
+
+function statOf(files: ChangedFile[]): Comparison['stat'] {
+  return {
+    filesChanged: files.length,
+    insertions: files.reduce((n, f) => n + (f.insertions ?? 0), 0),
+    deletions: files.reduce((n, f) => n + (f.deletions ?? 0), 0),
+  };
 }
 
 /** Encode a change into a decoration URI (see FileDecorationProvider). */

@@ -8,11 +8,13 @@ import { ComparePanel } from './comparePanel';
 import {
   Branch,
   ChangedFile,
+  Commit,
   commitFiles,
   EMPTY_TREE,
   findRepoRoot,
   GitError,
   listBranches,
+  rangeFiles,
 } from './git';
 
 const HAS_COMPARISON = 'branchCompare.hasComparison';
@@ -40,6 +42,7 @@ export function activate(context: vscode.ExtensionContext) {
   const commitsView = vscode.window.createTreeView('branchCompare.commits', {
     treeDataProvider: commitsProvider,
     showCollapseAll: true,
+    canSelectMany: true,
   });
 
   const statusBar = vscode.window.createStatusBarItem(
@@ -72,9 +75,15 @@ export function activate(context: vscode.ExtensionContext) {
       return;
     }
     const mode = cmp.threeDot ? 'merge-base' : 'direct';
-    treeView.description = `${cmp.target} ↔ ${cmp.source}`;
-    treeView.message =
-      cmp.files.length === 0
+    const scope = provider.scope;
+    treeView.description = scope
+      ? `${scope.oldestShort} → ${scope.newestShort}`
+      : `${cmp.target} ↔ ${cmp.source}`;
+    treeView.message = scope
+      ? `Selected commits ${scope.oldestShort} → ${scope.newestShort} (${scope.count}) · ` +
+        `${scope.stat.filesChanged} file(s) · +${scope.stat.insertions} −${scope.stat.deletions} · ` +
+        `clear the selection (Esc) to show the full comparison`
+      : cmp.files.length === 0
         ? 'No changes between these branches.'
         : `${cmp.stat.filesChanged || cmp.files.length} file(s) changed · ` +
           `+${cmp.stat.insertions} −${cmp.stat.deletions} · ${mode}`;
@@ -97,6 +106,66 @@ export function activate(context: vscode.ExtensionContext) {
       cmp ? { repo: cmp.repo, target: cmp.target, source: cmp.source } : undefined
     );
   };
+
+  /**
+   * Narrow the Changes view to the commits selected in the Commits view
+   * (2+ rows), or restore the full comparison when the selection shrinks.
+   */
+  let selectionGen = 0;
+  const applyCommitSelection = async (nodes: readonly CommitTreeNode[]) => {
+    const gen = ++selectionGen;
+    const cmp = provider.current;
+    if (!cmp) {
+      return;
+    }
+    const commits = nodes
+      .filter((n): n is CommitTreeNode & { kind: 'commit' } => n?.kind === 'commit')
+      .map((n) => n.commit);
+    if (commits.length < 2) {
+      provider.setScope(undefined);
+      syncUi();
+      return;
+    }
+    // Order by position in the listed history (0 = newest) and diff the whole
+    // span — from the oldest selection's parent to the newest tip.
+    const ordered = [...commits].sort(
+      (a, b) => commitsProvider.orderOf(a.sha) - commitsProvider.orderOf(b.sha)
+    );
+    const newest = ordered[0];
+    const oldest = ordered[ordered.length - 1];
+    const span =
+      commitsProvider.orderOf(oldest.sha) - commitsProvider.orderOf(newest.sha) + 1;
+    const base = oldest.parents[0] ?? EMPTY_TREE;
+    const files = await rangeFiles(cmp.repo, base, newest.sha);
+    if (gen !== selectionGen) {
+      return; // a newer selection superseded this one while git ran
+    }
+    provider.setScope({
+      baseRef: base,
+      headRef: newest.sha,
+      oldestShort: oldest.shortSha,
+      newestShort: newest.shortSha,
+      count: span,
+      files,
+    });
+    syncUi();
+  };
+
+  // Debounce selection churn (ctrl-clicking rows fires an event per click).
+  let selectionTimer: ReturnType<typeof setTimeout> | undefined;
+  commitsView.onDidChangeSelection(
+    () => {
+      if (selectionTimer) {
+        clearTimeout(selectionTimer);
+      }
+      selectionTimer = setTimeout(
+        () => run(() => applyCommitSelection(commitsView.selection)),
+        200
+      );
+    },
+    undefined,
+    context.subscriptions
+  );
 
   const setLayout = (tree: boolean) => {
     provider.setLayout(tree);
@@ -217,7 +286,15 @@ export function activate(context: vscode.ExtensionContext) {
     ),
     vscode.commands.registerCommand(
       'branchCompare.openCommitDiff',
-      (node: CommitTreeNode) => run(() => openCommitDiff(node, provider))
+      (node: CommitTreeNode, nodes?: CommitTreeNode[]) =>
+        run(() =>
+          openCommitDiff(
+            node,
+            nodes ?? [...commitsView.selection],
+            provider,
+            commitsProvider
+          )
+        )
     ),
     vscode.commands.registerCommand(
       'branchCompare.copyCommitSha',
@@ -302,23 +379,30 @@ async function openChange(node: TreeNode, provider: CompareProvider): Promise<vo
   const f = node.file;
   const leftPath = f.oldPath ?? f.path;
 
+  // When the view is narrowed to selected commits, diff within that range.
+  const scope = provider.scope;
+  const leftRef = scope ? scope.baseRef : cmp.baseRef;
+  const rightRef = scope ? scope.headRef : cmp.source;
+
   const left = GitContentProvider.toUri({
     repo: cmp.repo,
-    ref: cmp.baseRef,
+    ref: leftRef,
     relPath: leftPath,
   });
   const right = GitContentProvider.toUri({
     repo: cmp.repo,
-    ref: cmp.source,
+    ref: rightRef,
     relPath: f.path,
   });
 
   const name = path.posix.basename(f.path);
-  const scope = `${cmp.target} ↔ ${cmp.source}`;
+  const label = scope
+    ? `${scope.oldestShort} → ${scope.newestShort}`
+    : `${cmp.target} ↔ ${cmp.source}`;
   const title =
     (f.status === 'R' || f.status === 'C') && f.oldPath
-      ? `${path.posix.basename(f.oldPath)} → ${name} (${scope})`
-      : `${name} (${scope})`;
+      ? `${path.posix.basename(f.oldPath)} → ${name} (${label})`
+      : `${name} (${label})`;
 
   await vscode.commands.executeCommand('vscode.diff', left, right, title, {
     preview: true,
@@ -365,38 +449,92 @@ async function openAllChanges(provider: CompareProvider): Promise<void> {
   if (!cmp) {
     return;
   }
-  if (cmp.files.length === 0) {
+  const scope = provider.scope;
+  const files = scope ? scope.files : cmp.files;
+  if (files.length === 0) {
     vscode.window.showInformationMessage('Branch Compare: no changes to show.');
     return;
   }
-  const resources = cmp.files.map((f) =>
-    diffTuple(cmp.repo, cmp.baseRef, cmp.source, f)
-  );
-  await openMultiDiff(`Changes: ${cmp.target} ↔ ${cmp.source}`, resources);
+  const leftRef = scope ? scope.baseRef : cmp.baseRef;
+  const rightRef = scope ? scope.headRef : cmp.source;
+  const resources = files.map((f) => diffTuple(cmp.repo, leftRef, rightRef, f));
+  const label = scope
+    ? `commits ${scope.oldestShort} → ${scope.newestShort}`
+    : `${cmp.target} ↔ ${cmp.source}`;
+  await openMultiDiff(`Changes: ${label}`, resources);
 }
 
 async function openCommitDiff(
   node: CommitTreeNode,
-  provider: CompareProvider
+  selection: CommitTreeNode[],
+  provider: CompareProvider,
+  commitsProvider: CommitsProvider
 ): Promise<void> {
   const cmp = provider.current;
-  if (!cmp || !node || node.kind !== 'commit') {
+  if (!cmp) {
     return;
   }
-  const commit = node.commit;
-  const files = await commitFiles(cmp.repo, commit.sha);
+  // Use the multi-selection only when it includes the clicked commit;
+  // otherwise the action applies to just the row that was invoked.
+  const selected = selection.filter(
+    (n): n is CommitTreeNode & { kind: 'commit' } => n?.kind === 'commit'
+  );
+  const commits: Commit[] =
+    node?.kind === 'commit' &&
+    !selected.some((n) => n.commit.sha === node.commit.sha)
+      ? [node.commit]
+      : selected.map((n) => n.commit);
+  if (commits.length === 0) {
+    return;
+  }
+
+  if (commits.length === 1) {
+    const commit = commits[0];
+    const files = await commitFiles(cmp.repo, commit.sha);
+    if (files.length === 0) {
+      vscode.window.showInformationMessage(
+        `Branch Compare: ${commit.shortSha} changed no files.`
+      );
+      return;
+    }
+    const parentRef = commit.parents[0] ?? EMPTY_TREE;
+    const resources = files.map((f) =>
+      diffTuple(cmp.repo, parentRef, commit.sha, f)
+    );
+    const subject = commit.subject ? ` · ${commit.subject}` : '';
+    await openMultiDiff(`Commit ${commit.shortSha}${subject}`, resources);
+    return;
+  }
+
+  // Several commits: show everything from the oldest one's parent up to the
+  // newest tip. Order by position in the listed history (0 = newest).
+  const ordered = [...commits].sort(
+    (a, b) => commitsProvider.orderOf(a.sha) - commitsProvider.orderOf(b.sha)
+  );
+  const newest = ordered[0];
+  const oldest = ordered[ordered.length - 1];
+  const span =
+    commitsProvider.orderOf(oldest.sha) - commitsProvider.orderOf(newest.sha) + 1;
+  if (span > commits.length) {
+    vscode.window.showInformationMessage(
+      `Branch Compare: selection isn't contiguous — showing all changes from ` +
+        `${oldest.shortSha} to ${newest.shortSha}, including the ` +
+        `${span - commits.length} commit(s) in between.`
+    );
+  }
+  const base = oldest.parents[0] ?? EMPTY_TREE;
+  const files = await rangeFiles(cmp.repo, base, newest.sha);
   if (files.length === 0) {
     vscode.window.showInformationMessage(
-      `Branch Compare: ${commit.shortSha} changed no files.`
+      `Branch Compare: no changes between ${oldest.shortSha} and ${newest.shortSha}.`
     );
     return;
   }
-  const parentRef = commit.parents[0] ?? EMPTY_TREE;
-  const resources = files.map((f) =>
-    diffTuple(cmp.repo, parentRef, commit.sha, f)
+  const resources = files.map((f) => diffTuple(cmp.repo, base, newest.sha, f));
+  await openMultiDiff(
+    `Commits ${oldest.shortSha} → ${newest.shortSha} (${span})`,
+    resources
   );
-  const subject = commit.subject ? ` · ${commit.subject}` : '';
-  await openMultiDiff(`Commit ${commit.shortSha}${subject}`, resources);
 }
 
 /** Build a [resource, original, modified] URI tuple for one changed file. */

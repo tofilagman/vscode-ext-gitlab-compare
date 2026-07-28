@@ -29,18 +29,28 @@ Install **Git Branch Compare** from the Visual Studio Marketplace:
 - **Merge-base (three-dot) diff by default** — shows only the changes introduced
   on the *source* branch since it diverged from the *target*, the same way a
   merge request presents changes. Toggle to a **direct (two-dot)** diff any time.
-- **File tree** with git-style `A`/`M`/`D`/`R` badges and colors, compacted
+- **File tree** with `A`/`M`/`D`/`R` badges colored in the **IntelliJ VCS
+  scheme** — added green, modified/renamed blue, deleted gray — compacted
   folders, per-file `+/−` line counts in tooltips, and a `+/−` summary for the
   whole comparison. Switch between **tree and flat-list layout** from the view
-  title.
+  title. The colors are theme-aware and overridable via
+  `workbench.colorCustomizations` (`branchCompare.addedForeground`,
+  `branchCompare.modifiedForeground`, `branchCompare.deletedForeground`,
+  `branchCompare.conflictForeground`).
 - **Commits view** listing the commits on the source branch that aren't in the
   target (`target..source`) — like an MR's Commits tab. Expand a commit to
   see its changed files, and click a file to diff that commit against its
   parent. Copy a commit's SHA from its inline action.
-- **View entire commit as one diff** — the inline action on a commit opens all
+- **View commit changes as one diff** — the inline action on a commit opens all
   of its files together in VS Code's scrolling multi-file diff editor. The
   Changes view title has the same **View all changes as one diff** action for
   the whole comparison.
+- **Multi-select commits to focus the Changes view** — Ctrl/Cmd- or Shift-click
+  two or more commits and the Changes tree narrows to the combined changes of
+  that range (oldest commit's parent → newest commit), with its own `+/−`
+  totals. Clear the selection (<kbd>Esc</kbd> in the Commits view, or click a
+  single commit) to bring back the full comparison. The inline
+  **View Commit Changes as One Diff** action also works on a multi-selection.
 - **Native diff editor** on click — full syntax highlighting, folding, and
   inline navigation for free. Added/deleted files render correctly.
 - **Swap** target/source and **refresh** after new commits, from the view title.

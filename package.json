@@ -2,7 +2,7 @@
   "name": "git-branch-compare",
   "displayName": "Git Branch Compare",
   "description": "Compare two git branches visually with a merge-request-style diff — file tree, commits, and multi-file diffs. No merge request required.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publisher": "tofilagman",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -101,7 +101,7 @@
       },
       {
         "command": "branchCompare.openCommitDiff",
-        "title": "View Entire Commit as One Diff",
+        "title": "View Commit Changes as One Diff",
         "icon": "$(diff-multiple)"
       },
       {
@@ -132,6 +132,48 @@
       {
         "command": "branchCompare.copyPath",
         "title": "Copy Relative Path"
+      }
+    ],
+    "colors": [
+      {
+        "id": "branchCompare.addedForeground",
+        "description": "Added / copied files in the Branch Compare trees (IntelliJ-style green).",
+        "defaults": {
+          "dark": "#62b543",
+          "light": "#388e3c",
+          "highContrast": "#89d185",
+          "highContrastLight": "#2e7031"
+        }
+      },
+      {
+        "id": "branchCompare.modifiedForeground",
+        "description": "Modified / renamed files in the Branch Compare trees (IntelliJ-style blue).",
+        "defaults": {
+          "dark": "#3993d0",
+          "light": "#0b5cad",
+          "highContrast": "#75beff",
+          "highContrastLight": "#0b5cad"
+        }
+      },
+      {
+        "id": "branchCompare.deletedForeground",
+        "description": "Deleted files in the Branch Compare trees (IntelliJ-style gray).",
+        "defaults": {
+          "dark": "#8c8c8c",
+          "light": "#6e6e6e",
+          "highContrast": "#a5a5a5",
+          "highContrastLight": "#5f5f5f"
+        }
+      },
+      {
+        "id": "branchCompare.conflictForeground",
+        "description": "Unmerged / conflicting files in the Branch Compare trees.",
+        "defaults": {
+          "dark": "#d5756c",
+          "light": "#ad2b1a",
+          "highContrast": "#f48771",
+          "highContrastLight": "#ad2b1a"
+        }
       }
     ],
     "menus": {

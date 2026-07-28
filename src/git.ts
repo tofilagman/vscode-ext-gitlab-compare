@@ -149,6 +149,18 @@ export async function commitFiles(repo: string, sha: string): Promise<ChangedFil
 }
 
 /**
+ * List files changed between two tree-ish refs (e.g. a commit's parent and a
+ * later commit). Used to open several selected commits as one combined diff.
+ */
+export async function rangeFiles(
+  repo: string,
+  base: string,
+  head: string
+): Promise<ChangedFile[]> {
+  return diffFiles(repo, [base, head]);
+}
+
+/**
  * Run name-status and numstat diffs in parallel for the same revision args and
  * merge them, so every file carries its status and its +/− line counts.
  */

@@ -1,8 +1,10 @@
 import * as vscode from 'vscode';
 
 /**
- * Colors and single-letter badges for change status, mirroring the git badges
- * VS Code shows in the SCM view. Applied to branch-compare-file: URIs whose
+ * Colors and single-letter badges for change status, following the IntelliJ
+ * VCS scheme — added green, modified blue, deleted gray — via the
+ * branchCompare.* theme colors contributed in package.json (overridable with
+ * workbench.colorCustomizations). Applied to branch-compare-file: URIs whose
  * query is the status letter.
  */
 export class ChangeDecorationProvider implements vscode.FileDecorationProvider {
@@ -15,19 +17,19 @@ export class ChangeDecorationProvider implements vscode.FileDecorationProvider {
     const status = uri.query;
     switch (status) {
       case 'A':
-        return badge('A', 'gitDecoration.addedResourceForeground', 'Added');
+        return badge('A', 'branchCompare.addedForeground', 'Added');
       case 'M':
-        return badge('M', 'gitDecoration.modifiedResourceForeground', 'Modified');
+        return badge('M', 'branchCompare.modifiedForeground', 'Modified');
       case 'D':
-        return badge('D', 'gitDecoration.deletedResourceForeground', 'Deleted');
+        return badge('D', 'branchCompare.deletedForeground', 'Deleted');
       case 'R':
-        return badge('R', 'gitDecoration.renamedResourceForeground', 'Renamed');
+        return badge('R', 'branchCompare.modifiedForeground', 'Renamed');
       case 'C':
-        return badge('C', 'gitDecoration.renamedResourceForeground', 'Copied');
+        return badge('C', 'branchCompare.addedForeground', 'Copied');
       case 'T':
-        return badge('T', 'gitDecoration.modifiedResourceForeground', 'Type changed');
+        return badge('T', 'branchCompare.modifiedForeground', 'Type changed');
       case 'U':
-        return badge('U', 'gitDecoration.conflictingResourceForeground', 'Unmerged');
+        return badge('U', 'branchCompare.conflictForeground', 'Unmerged');
       default:
         return undefined;
     }

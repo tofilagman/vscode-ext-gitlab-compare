@@ -6,7 +6,6 @@ import { GitContentProvider } from './contentProvider';
 import { ChangeDecorationProvider } from './decorations';
 import { ComparePanel } from './comparePanel';
 import {
-  Branch,
   ChangedFile,
   Commit,
   commitFiles,
@@ -191,15 +190,14 @@ export function activate(context: vscode.ExtensionContext) {
     // Prefer the repo of the active comparison, else the first repo found.
     const cur = provider.current;
     const repo = cur && roots.includes(cur.repo) ? cur.repo : roots[0];
-    const branches = await listBranches(repo, includeRemote);
-    const source =
-      cur?.repo === repo ? cur.source : branches.find((b) => b.current)?.name;
-    const target =
-      cur?.repo === repo ? cur.target : defaultTarget(branches, source);
+    // Open the page right away; it requests the branch list itself, which can
+    // take a while in repos with thousands of branches.
+    const source = cur?.repo === repo ? cur.source : undefined;
+    const target = cur?.repo === repo ? cur.target : undefined;
 
     ComparePanel.show(
       roots.map((r) => ({ path: r, name: path.basename(r) })),
-      { repo, branches, source, target, threeDot: threeDotDefault },
+      { repo, source, target, threeDot: threeDotDefault },
       {
         loadBranches: (r) => listBranches(r, includeRemote),
         submit: async (req) => {
@@ -358,17 +356,6 @@ async function listRepoRoots(): Promise<string[]> {
     }
   }
   return [...roots];
-}
-
-/** Pick a sensible default target branch (main/master/develop, else any other). */
-function defaultTarget(branches: Branch[], source?: string): string | undefined {
-  for (const name of ['main', 'master', 'develop', 'trunk']) {
-    const m = branches.find((b) => b.name === name && b.name !== source);
-    if (m) {
-      return m.name;
-    }
-  }
-  return branches.find((b) => b.name !== source)?.name;
 }
 
 async function openChange(node: TreeNode, provider: CompareProvider): Promise<void> {

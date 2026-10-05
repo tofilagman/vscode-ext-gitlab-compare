@@ -20,10 +20,13 @@ export interface CompareSubmit {
 /** Result of running a submitted comparison. */
 export type SubmitResult = { ok: true } | { ok: false; error: string };
 
-/** Data used to (re)populate the page. */
+/**
+ * Data used to (re)populate the page. Branches are not included: the page
+ * opens immediately and requests them, so a slow branch listing never delays it.
+ * `source`/`target` are preferred selections, applied once branches arrive.
+ */
 export interface CompareState {
   repo: string;
-  branches: Branch[];
   source?: string;
   target?: string;
   threeDot: boolean;
@@ -54,6 +57,8 @@ export class ComparePanel {
     handlers: CompareHandlers
   ): void {
     if (ComparePanel.instance) {
+      ComparePanel.instance.repos = repos;
+      ComparePanel.instance.state = state;
       ComparePanel.instance.handlers = handlers;
       ComparePanel.instance.panel.reveal(vscode.ViewColumn.Active);
       ComparePanel.instance.post({ type: 'init', repos, state });
@@ -94,13 +99,15 @@ export class ComparePanel {
         this.post({ type: 'init', repos: this.repos, state: this.state });
         return;
       case 'requestBranches': {
+        // Echo the request id back so the page can drop stale responses
+        // (e.g. the user switched repos while a listing was still running).
+        const reply = { type: 'branches', id: msg.id, repo: msg.repo };
         try {
           const branches = await this.handlers.loadBranches(msg.repo);
-          this.post({ type: 'branches', repo: msg.repo, branches });
+          this.post({ ...reply, branches });
         } catch (err) {
           this.post({
-            type: 'branches',
-            repo: msg.repo,
+            ...reply,
             branches: [],
             error: err instanceof Error ? err.message : String(err),
           });
@@ -562,11 +569,17 @@ export class ComparePanel {
       },
       getValue: () => value,
       setValue(name) { value = name; input.value = name; },
-      setEnabled(on) { input.disabled = !on; if (!on) input.value = ''; },
+      setLoading(on) {
+        input.disabled = on;
+        input.placeholder = on ? 'Loading branches…' : 'Search branches…';
+        if (on) { items = []; value = ''; input.value = ''; setOpen(false); }
+      },
     };
   }
 
   let repos = [];
+  let requestId = 0;  // id of the latest branch request; older replies are ignored
+  let pending = { source: undefined, target: undefined }; // preferred picks
   const source = createCombo($('sourceInput'), $('sourceList'), validate);
   const target = createCombo($('targetInput'), $('targetList'), validate);
 
@@ -590,6 +603,16 @@ export class ComparePanel {
     return el ? el.value : 'merge-base';
   }
 
+  /** Disable the pickers and ask the extension for the repo's branches. */
+  function requestBranches(repo, prefSource, prefTarget) {
+    pending = { source: prefSource, target: prefTarget };
+    source.setLoading(true);
+    target.setLoading(true);
+    compareBtn.disabled = true;
+    compareBtn.textContent = 'Compare';
+    vscode.postMessage({ type: 'requestBranches', id: ++requestId, repo });
+  }
+
   window.addEventListener('message', (event) => {
     const msg = event.data;
     if (msg.type === 'init') {
@@ -606,26 +629,30 @@ export class ComparePanel {
       const mode = msg.state.threeDot ? 'merge-base' : 'direct';
       const modeEl = document.querySelector('input[name="mode"][value="' + mode + '"]');
       if (modeEl) modeEl.checked = true;
-      source.setEnabled(true);
-      target.setEnabled(true);
-      fillBranches(msg.state.branches || [], msg.state.source, msg.state.target);
+      errorEl.textContent = '';
+      requestBranches(msg.state.repo, msg.state.source, msg.state.target);
     } else if (msg.type === 'branches') {
+      if (msg.id !== requestId) return; // superseded by a newer request
       if (msg.error) errorEl.textContent = msg.error;
       const branches = msg.branches || [];
+      const has = (name) => !!name && branches.some((b) => b.name === name);
       const preferred = ['main', 'master', 'develop', 'trunk'];
       const current = branches.find((b) => b.current);
-      const src = current ? current.name : (branches[0] && branches[0].name);
-      let tgt;
+      const src = has(pending.source)
+        ? pending.source
+        : (current ? current.name : (branches[0] && branches[0].name));
+      let tgt = has(pending.target) && pending.target !== src ? pending.target : undefined;
       for (const p of preferred) {
+        if (tgt) break;
         const m = branches.find((b) => b.name === p && b.name !== src);
-        if (m) { tgt = m.name; break; }
+        if (m) tgt = m.name;
       }
       if (!tgt) {
         const other = branches.find((b) => b.name !== src);
         tgt = other ? other.name : (branches[0] && branches[0].name);
       }
-      source.setEnabled(true);
-      target.setEnabled(true);
+      source.setLoading(false);
+      target.setLoading(false);
       fillBranches(branches, src, tgt);
     } else if (msg.type === 'error') {
       errorEl.textContent = msg.message || 'Comparison failed.';
@@ -636,10 +663,7 @@ export class ComparePanel {
 
   repoSel.addEventListener('change', () => {
     errorEl.textContent = '';
-    source.setEnabled(false);
-    target.setEnabled(false);
-    compareBtn.disabled = true;
-    vscode.postMessage({ type: 'requestBranches', repo: repoSel.value });
+    requestBranches(repoSel.value);
   });
   $('swap').addEventListener('click', () => {
     const s = source.getValue();
